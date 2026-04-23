@@ -1,0 +1,29 @@
+{
+  "demand": {
+    "MAE": 45.59,
+    "RMSE": 69.3,
+    "R2": 0.6682,
+    "MAPE": 143.44
+  },
+  "supplier_delay": {
+    "Accuracy": 0.5667,
+    "Precision": 0.5556,
+    "Recall": 0.5172,
+    "F1": 0.5357,
+    "ROC_AUC": 0.5734
+  },
+  "inventory_risk": {
+    "Accuracy": 0.9383,
+    "F1_Weighted": 0.927,
+    "Classes": [
+      "High",
+      "Low",
+      "Medium"
+    ]
+  },
+  "cash_stress": {
+    "MAE": 3.96,
+    "RMSE": 6.35,
+    "R2": 0.9552
+  }
+}
