@@ -46,15 +46,141 @@ st.markdown("""
 
 html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 
+/* ─── Hide default Streamlit header & footer only ─── */
+#MainMenu { visibility: hidden; }
+footer    { visibility: hidden; }
+header    { visibility: hidden; }
+
 /* ─── Sidebar ─── */
 section[data-testid="stSidebar"] {
     background: linear-gradient(160deg, #0b1a2e 0%, #0f2744 60%, #0b1a2e 100%) !important;
+    top: 56px !important;
+    height: calc(100vh - 56px) !important;
 }
 section[data-testid="stSidebar"] * { color: #c9dff0 !important; }
 section[data-testid="stSidebar"] .stRadio label { font-size: 0.85rem; }
 
-/* ─── Main area ─── */
-.main .block-container { padding: 1.6rem 2.2rem; max-width: 1400px; }
+/* ─── Sidebar collapse/expand toggle button — ALWAYS VISIBLE ─── */
+[data-testid="collapsedControl"] {
+    top: 64px !important;
+    background: #0f2744 !important;
+    border-radius: 0 10px 10px 0 !important;
+    width: 28px !important;
+    height: 52px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 3px 0 12px rgba(0,0,0,0.35) !important;
+    border: 1px solid rgba(0,180,216,0.4) !important;
+    border-left: none !important;
+    z-index: 999 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    cursor: pointer !important;
+}
+[data-testid="collapsedControl"]:hover {
+    background: #1a3f70 !important;
+    width: 34px !important;
+    transition: all 0.2s ease;
+}
+[data-testid="collapsedControl"] svg {
+    color: #00d4ff !important;
+    fill: #00d4ff !important;
+    width: 18px !important;
+    height: 18px !important;
+}
+
+/* ─── Sidebar's own collapse button (inside sidebar) ─── */
+section[data-testid="stSidebar"] [data-testid="baseButton-headerNoPadding"],
+section[data-testid="stSidebar"] button[kind="header"] {
+    color: #00d4ff !important;
+    background: rgba(0,180,216,0.15) !important;
+    border-radius: 8px !important;
+}
+
+/* ─── Fixed top navbar ─── */
+.topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: linear-gradient(90deg, #0b1a2e 0%, #0f2744 50%, #0b1a2e 100%);
+    border-bottom: 2px solid rgba(0,180,216,0.4);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    z-index: 1000;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+    gap: 16px;
+}
+.topbar-logo {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: white;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.topbar-logo span { color: #00d4ff; }
+.topbar-divider {
+    width: 1px; height: 28px;
+    background: rgba(0,180,216,0.35);
+    margin: 0 4px;
+}
+.topbar-nav {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: 1;
+}
+.topbar-nav::-webkit-scrollbar { display: none; }
+.topbar-pill {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #7eb8d4;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(0,180,216,0.15);
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+    letter-spacing: 0.3px;
+}
+.topbar-pill:hover {
+    background: rgba(0,180,216,0.2);
+    color: white;
+    border-color: rgba(0,180,216,0.5);
+}
+.topbar-pill.active {
+    background: linear-gradient(90deg, #0077b6, #00b4d8);
+    color: white;
+    border-color: #00b4d8;
+    font-weight: 600;
+}
+.topbar-badge {
+    margin-left: auto;
+    background: rgba(0,180,216,0.15);
+    border: 1px solid rgba(0,180,216,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.68rem;
+    color: #7eb8d4;
+    white-space: nowrap;
+    font-family: 'Space Mono', monospace;
+}
+
+/* ─── Push main content below topbar ─── */
+.main .block-container {
+    padding: 4.8rem 2.2rem 2rem !important;
+    max-width: 1400px;
+}
 
 /* ─── KPI card ─── */
 .kpi-card {
@@ -128,11 +254,6 @@ section[data-testid="stSidebar"] .stRadio label { font-size: 0.85rem; }
     border-bottom: 3px solid #00b4d8;
     padding-bottom: 10px; margin-bottom: 22px;
 }
-
-/* ─── Hide Streamlit chrome ─── */
-#MainMenu { visibility: hidden; }
-footer    { visibility: hidden; }
-header    { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -163,21 +284,54 @@ metrics = load_metrics()
 
 from utils import get_X, encode_single, CAT_COLS
 
+# ── Page state ───────────────────────────────────────────────────────────────
+PAGES = [
+    "🏠  Overview Dashboard",
+    "📈  Demand Forecasting",
+    "🚚  Supplier Risk",
+    "📦  Inventory Risk",
+    "💰  Cash Flow Impact",
+    "🔍  SHAP Explainability",
+    "⚡  Live Prediction Engine",
+]
+PAGES_SHORT = ["Overview", "Demand", "Supplier Risk",
+               "Inv. Risk", "Cash Flow", "SHAP", "⚡ Predict"]
+
+if "page_idx" not in st.session_state:
+    st.session_state.page_idx = 0
+
+# ── Persistent top navbar (always visible even when sidebar collapsed) ────────
+active = st.session_state.page_idx
+pills_html = ""
+for i, label in enumerate(PAGES_SHORT):
+    cls = "topbar-pill active" if i == active else "topbar-pill"
+    pills_html += f'<span class="{cls}" onclick="void(0)">{label}</span>'
+
+st.markdown(f"""
+<div class="topbar">
+    <div class="topbar-logo">🏭 <span>SmartSupply</span> Finance AI</div>
+    <div class="topbar-divider"></div>
+    <div class="topbar-nav">{pills_html}</div>
+    <div class="topbar-badge">3,000 rows · 4 models · Live</div>
+</div>
+""", unsafe_allow_html=True)
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🏭 SmartSupply Finance AI")
     st.markdown("*Inventory & Cash-Flow Risk Intelligence*")
     st.markdown("---")
+    st.markdown("**📍 Navigate**")
 
-    page = st.radio("Navigate", [
-        "🏠  Overview Dashboard",
-        "📈  Demand Forecasting",
-        "🚚  Supplier Risk",
-        "📦  Inventory Risk",
-        "💰  Cash Flow Impact",
-        "🔍  SHAP Explainability",
-        "⚡  Live Prediction Engine",
-    ], label_visibility="collapsed")
+    page_idx = st.radio(
+        "Navigate",
+        options=list(range(len(PAGES))),
+        format_func=lambda i: PAGES[i],
+        index=st.session_state.page_idx,
+        label_visibility="collapsed",
+    )
+    st.session_state.page_idx = page_idx
+    page = PAGES[page_idx]
 
     st.markdown("---")
     st.markdown("**📊 Dataset**")
@@ -195,6 +349,8 @@ with st.sidebar:
     st.caption("• XGBoost Classifier (Delay)")
     st.caption("• Random Forest Clf (Inv Risk)")
     st.caption("• Random Forest Reg (Cash Stress)")
+    st.markdown("---")
+    st.caption("💡 Tip: Click **›** on the left edge to reopen this sidebar anytime.")
 
 
 # ════════════════════════════════════════════════════════════════════════════
