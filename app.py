@@ -300,21 +300,69 @@ PAGES_SHORT = ["Overview", "Demand", "Supplier Risk",
 if "page_idx" not in st.session_state:
     st.session_state.page_idx = 0
 
-# ── Persistent top navbar (always visible even when sidebar collapsed) ────────
-active = st.session_state.page_idx
-pills_html = ""
-for i, label in enumerate(PAGES_SHORT):
-    cls = "topbar-pill active" if i == active else "topbar-pill"
-    pills_html += f'<span class="{cls}" onclick="void(0)">{label}</span>'
-
-st.markdown(f"""
+# ── Persistent branding bar (logo only — no clickable HTML) ──────────────────
+st.markdown("""
 <div class="topbar">
     <div class="topbar-logo">🏭 <span>SmartSupply</span> Finance AI</div>
     <div class="topbar-divider"></div>
-    <div class="topbar-nav">{pills_html}</div>
-    <div class="topbar-badge">3,000 rows · 4 models · Live</div>
+    <div style="font-size:0.72rem;color:#7eb8d4;letter-spacing:.5px;">
+        ML-Based Inventory &amp; Cash-Flow Intelligence
+    </div>
+    <div class="topbar-badge" style="margin-left:auto;">3,000 rows · 4 models · Live</div>
 </div>
 """, unsafe_allow_html=True)
+
+# ── Real functional navbar using st.button ───────────────────────────────────
+# CSS: style these specific buttons to look like pill tabs
+st.markdown("""
+<style>
+/* Target only the navbar button row */
+div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"].nav-btn) {
+    gap: 4px !important;
+}
+/* All nav buttons */
+div.nav-row > div[data-testid="column"] > div[data-testid="stButton"] > button {
+    width: 100%;
+    padding: 6px 4px !important;
+    border-radius: 20px !important;
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    border: 1px solid rgba(0,180,216,0.25) !important;
+    background: rgba(255,255,255,0.04) !important;
+    color: #4a7fa8 !important;
+    transition: all 0.15s ease !important;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
+}
+div.nav-row > div[data-testid="column"] > div[data-testid="stButton"] > button:hover {
+    background: rgba(0,180,216,0.18) !important;
+    color: #0f2744 !important;
+    border-color: #00b4d8 !important;
+    transform: translateY(-1px);
+}
+/* Active page button */
+div.nav-row > div[data-testid="column"] > div[data-testid="stButton"] > button[data-active="true"],
+div.nav-row .active-nav-btn button {
+    background: linear-gradient(90deg, #0077b6, #00b4d8) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    border-color: #00b4d8 !important;
+    box-shadow: 0 2px 10px rgba(0,180,216,0.35) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="nav-row">', unsafe_allow_html=True)
+nav_cols = st.columns(7)
+for i, (col, label) in enumerate(zip(nav_cols, PAGES_SHORT)):
+    with col:
+        is_active = (st.session_state.page_idx == i)
+        btn_style = "primary" if is_active else "secondary"
+        if st.button(label, key=f"nav_{i}", type=btn_style, use_container_width=True):
+            st.session_state.page_idx = i
+            st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<hr style="margin:6px 0 16px;border:none;border-top:1px solid #e8edf2;">', unsafe_allow_html=True)
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -323,15 +371,24 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**📍 Navigate**")
 
-    page_idx = st.radio(
+# ── Sidebar ──────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("## 🏭 SmartSupply Finance AI")
+    st.markdown("*Inventory & Cash-Flow Risk Intelligence*")
+    st.markdown("---")
+    st.markdown("**📍 Navigate**")
+
+    sidebar_idx = st.radio(
         "Navigate",
         options=list(range(len(PAGES))),
         format_func=lambda i: PAGES[i],
         index=st.session_state.page_idx,
+        key="sidebar_radio",
         label_visibility="collapsed",
     )
-    st.session_state.page_idx = page_idx
-    page = PAGES[page_idx]
+    if sidebar_idx != st.session_state.page_idx:
+        st.session_state.page_idx = sidebar_idx
+        st.rerun()
 
     st.markdown("---")
     st.markdown("**📊 Dataset**")
@@ -350,7 +407,10 @@ with st.sidebar:
     st.caption("• Random Forest Clf (Inv Risk)")
     st.caption("• Random Forest Reg (Cash Stress)")
     st.markdown("---")
-    st.caption("💡 Tip: Click **›** on the left edge to reopen this sidebar anytime.")
+    st.caption("💡 Collapsed sidebar? Use the top nav buttons above.")
+
+# Derive current page from session state (single source of truth)
+page = PAGES[st.session_state.page_idx]
 
 
 # ════════════════════════════════════════════════════════════════════════════
