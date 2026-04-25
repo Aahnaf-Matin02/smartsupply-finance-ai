@@ -1,183 +1,154 @@
 """
-SmartSupply Finance AI — Data Generation
-Generates a realistic synthetic dataset combining SCM and Finance variables.
+SmartSupply Finance AI — Data Processor (Unilever Dataset)
+Loads the real Supply_Chain_Analytics_Uniliver.xlsx, engineers features,
+derives ML targets, and augments to 800 rows for robust training.
 """
 
-import pandas as pd
-import numpy as np
 import os
+import numpy as np
+import pandas as pd
+
+COL_MAP = {
+    "Product type":               "Product_Type",
+    "SKU":                        "SKU_ID",
+    "Price":                      "Price",
+    "Availability":               "Availability",
+    "Number of products sold":    "Units_Sold",
+    "Revenue generated":          "Revenue",
+    "Customer demographics":      "Customer_Segment",
+    "Stock levels":               "Stock_Levels",
+    "Lead times":                 "Shipping_Lead_Time",
+    "Order quantities":           "Order_Quantity",
+    "Shipping times":             "Shipping_Time",
+    "Shipping carriers":          "Carrier",
+    "Shipping costs":             "Shipping_Cost",
+    "Supplier name":              "Supplier_ID",
+    "Lead time":                  "Supplier_Lead_Time",
+    "Production volumes":         "Production_Volume",
+    "Manufacturing lead time":    "Mfg_Lead_Time",
+    "Manufacturing costs":        "Mfg_Cost",
+    "Inspection results":         "Inspection_Result",
+    "Defect rates":               "Defect_Rate",
+    "Transportation modes":       "Transport_Mode",
+    "Routes":                     "Route",
+    "Costs":                      "Logistics_Cost",
+}
+
+CAT_COLS = {
+    "Product_Type":      ["haircare", "skincare", "cosmetics"],
+    "Customer_Segment":  ["Non-binary", "Female", "Male", "Unknown"],
+    "Carrier":           ["Carrier A", "Carrier B", "Carrier C"],
+    "Supplier_ID":       ["Supplier 1", "Supplier 2", "Supplier 3", "Supplier 4", "Supplier 5"],
+    "Inspection_Result": ["Pass", "Pending", "Fail"],
+    "Transport_Mode":    ["Road", "Air", "Rail", "Sea"],
+    "Route":             ["Route A", "Route B", "Route C"],
+}
 
 
-def generate_dataset(n_records: int = 3000, seed: int = 42) -> pd.DataFrame:
-    np.random.seed(seed)
-    n = n_records
+def load_and_engineer(path: str) -> pd.DataFrame:
+    raw = pd.read_excel(path)
+    df  = raw.rename(columns=COL_MAP)
+    df  = df.dropna(subset=["Units_Sold", "Price", "Stock_Levels"])
+    df["Units_Sold"]   = df["Units_Sold"].clip(lower=1)
+    df["Stock_Levels"] = df["Stock_Levels"].clip(lower=0)
+    df["Defect_Rate"]  = df["Defect_Rate"].clip(lower=0)
 
-    # ── IDENTIFIERS ────────────────────────────────────────────────────────
-    sku_pool     = [f"SKU-{i:04d}" for i in range(1, 201)]
-    supplier_pool = [f"SUP-{i:02d}"  for i in range(1, 26)]
-
-    sku_ids      = np.random.choice(sku_pool,      n)
-    supplier_ids = np.random.choice(supplier_pool, n)
-
-    # ── CATEGORICAL ─────────────────────────────────────────────────────────
-    categories = ["Electronics", "Apparel", "FMCG", "Pharma", "Industrial", "Food & Bev"]
-    seasons    = ["Q1_Winter",   "Q2_Spring", "Q3_Summer", "Q4_Holiday"]
-    regions    = ["Dhaka",       "Chittagong", "Sylhet", "Rajshahi", "Khulna"]
-
-    product_cat = np.random.choice(categories, n, p=[0.20, 0.15, 0.25, 0.15, 0.10, 0.15])
-    season      = np.random.choice(seasons,    n)
-    region      = np.random.choice(regions,    n)
-
-    # ── SCM VARIABLES ────────────────────────────────────────────────────────
-    historical_sales      = (np.random.gamma(4, 40, n) + 20).astype(int)
-    promotion_flag        = np.random.binomial(1, 0.25, n)
-    lead_time_days        = np.random.randint(3, 36, n)
-    supplier_rating       = np.round(np.clip(np.random.normal(3.8, 0.6, n), 2.0, 5.0), 1)
-    delivery_delay_history = np.random.poisson(2.5, n)
-    order_quantity        = (historical_sales * np.random.uniform(0.7, 1.8, n)).astype(int)
-    inventory_on_hand     = np.random.randint(5, 601, n)
-    demand_variability    = np.round(np.random.beta(2, 5, n), 3)
-
-    daily_demand  = historical_sales / 30.0
-    reorder_point = (daily_demand * lead_time_days * 1.2 + 15).astype(int)
-
-    # Stockout history correlated with low stock vs demand
-    low_stock_flag    = (inventory_on_hand < reorder_point).astype(int)
-    stockout_history  = np.maximum(0, np.random.poisson(1.5, n) + low_stock_flag * 2 - 1)
-
-    holding_cost   = np.round(np.random.uniform(0.5, 12.0, n), 2)
-    transport_cost = np.round(np.random.uniform(5.0, 80.0, n), 2)
-
-    # ── FINANCE VARIABLES ────────────────────────────────────────────────────
-    unit_cost     = np.round(np.random.gamma(5, 20, n) + 5,  2)
-    selling_price = np.round(unit_cost * np.random.uniform(1.15, 2.8, n), 2)
-    gross_margin  = np.round((selling_price - unit_cost) / selling_price * 100, 2)
-
-    ap_days          = np.random.randint(15, 76, n)
-    ar_days          = np.random.randint(7,  61, n)
-    inventory_days   = np.random.randint(10, 121, n)
-    cash_on_hand     = np.round(np.random.lognormal(10, 1.2, n), 2)
-    purchase_value   = np.round(unit_cost * order_quantity, 2)
-    monthly_op_cost  = np.round(np.random.lognormal(8, 0.8, n), 2)
-    financing_cost   = np.round(np.random.uniform(0.06, 0.18, n), 4)
-    discount_rate    = np.round(np.random.uniform(0.02, 0.12, n), 4)
-
-    inventory_value  = inventory_on_hand * unit_cost
-    working_capital  = np.round(cash_on_hand + inventory_value - purchase_value * (ap_days / 30.0), 2)
-
-    loss_from_stockout  = np.round(stockout_history * selling_price * np.random.randint(1, 8, n), 2)
-    excess_stock        = np.maximum(0, inventory_on_hand - reorder_point * 1.5)
-    loss_from_overstock = np.round(excess_stock * holding_cost, 2)
-
-    # ── ENGINEERED FEATURES (pre-computed) ───────────────────────────────────
-    stock_cover_days  = np.round(inventory_on_hand / (daily_demand + 0.01), 1)
-    reorder_gap       = inventory_on_hand - reorder_point
-    demand_stock_ratio = np.round(historical_sales / (inventory_on_hand + 1), 3)
-    carrying_cost_ratio = np.round((holding_cost * inventory_on_hand) / (purchase_value + 1), 4)
-    ccc               = ar_days + inventory_days - ap_days
-
-    # ── TARGET VARIABLES ─────────────────────────────────────────────────────
-
-    # 1) Future Sales — regression
-    season_mult = {
-        "Q1_Winter": 0.88, "Q2_Spring": 1.00,
-        "Q3_Summer": 1.08, "Q4_Holiday": 1.35
-    }
-    s_mult       = np.array([season_mult[s] for s in season])
-    noise        = np.random.normal(0, demand_variability * historical_sales)
-    future_sales = np.maximum(1,
-        (historical_sales * s_mult * (1 + 0.35 * promotion_flag) + noise).astype(int)
-    )
-
-    # 2) Delay Flag — binary classification
-    delay_prob = np.clip(
-        0.15
-        + (5 - supplier_rating) * 0.08
-        + delivery_delay_history * 0.04
-        + lead_time_days * 0.005
-        + demand_variability * 0.20
-        + np.random.normal(0, 0.05, n),
-        0.05, 0.92
-    )
-    delay_flag = np.random.binomial(1, delay_prob, n)
-
-    # 3) Inventory Risk Class — multiclass (Low / Medium / High)
-    risk_raw = np.clip(
-        demand_variability * 0.30
-        + stockout_history / 10.0
-        + low_stock_flag * 0.40
-        + (demand_stock_ratio > 2).astype(int) * 0.30
-        + np.random.normal(0, 0.05, n),
-        0, 1
-    )
-    inv_risk_class = np.where(
-        risk_raw < 0.35, "Low",
-        np.where(risk_raw < 0.65, "Medium", "High")
-    )
-
-    # 4) Cash Stress Score — 0–100 regression target
-    cash_stress = np.clip(
-        ccc / 150.0 * 25
-        + financing_cost * 150
-        + np.where(cash_on_hand > 0, loss_from_stockout / (cash_on_hand + 1), 0) * 50
-        + monthly_op_cost / (cash_on_hand + 1) * 30
-        + purchase_value / (np.maximum(working_capital, 1) + 1) * 15
-        + np.random.normal(0, 3, n),
-        0, 100
-    ).round(2)
-
-    # ── ASSEMBLE DATAFRAME ───────────────────────────────────────────────────
-    df = pd.DataFrame({
-        "SKU_ID":                  sku_ids,
-        "Supplier_ID":             supplier_ids,
-        "Product_Category":        product_cat,
-        "Season":                  season,
-        "Region":                  region,
-        "Historical_Sales":        historical_sales,
-        "Promotion_Flag":          promotion_flag,
-        "Lead_Time_Days":          lead_time_days,
-        "Supplier_Rating":         supplier_rating,
-        "Delivery_Delay_History":  delivery_delay_history,
-        "Order_Quantity":          order_quantity,
-        "Inventory_On_Hand":       inventory_on_hand,
-        "Reorder_Point":           reorder_point,
-        "Stockout_History":        stockout_history,
-        "Holding_Cost":            holding_cost,
-        "Transport_Cost":          transport_cost,
-        "Demand_Variability":      demand_variability,
-        "Unit_Cost":               unit_cost,
-        "Selling_Price":           selling_price,
-        "Gross_Margin":            gross_margin,
-        "AP_Days":                 ap_days,
-        "AR_Days":                 ar_days,
-        "Inventory_Days":          inventory_days,
-        "Cash_On_Hand":            cash_on_hand,
-        "Purchase_Value":          purchase_value,
-        "Monthly_Operating_Cost":  monthly_op_cost,
-        "Working_Capital":         working_capital,
-        "Financing_Cost":          financing_cost,
-        "Discount_Rate":           discount_rate,
-        "Loss_from_Stockout":      loss_from_stockout,
-        "Loss_from_Overstock":     loss_from_overstock,
-        "Stock_Cover_Days":        stock_cover_days,
-        "Reorder_Gap":             reorder_gap,
-        "Demand_Stock_Ratio":      demand_stock_ratio,
-        "Carrying_Cost_Ratio":     carrying_cost_ratio,
-        "Cash_Conversion_Cycle":   ccc,
-        # Targets
-        "Future_Sales":            future_sales,
-        "Delay_Flag":              delay_flag,
-        "Inventory_Risk_Class":    inv_risk_class,
-        "Cash_Stress_Score":       cash_stress,
-    })
-
-    os.makedirs("data", exist_ok=True)
-    df.to_csv("data/smartsupply_dataset.csv", index=False)
-    print(f"✅  Dataset saved → data/smartsupply_dataset.csv  "
-          f"[{n:,} rows × {len(df.columns)} cols]")
+    df["Gross_Margin_Pct"]   = ((df["Price"] - df["Mfg_Cost"]) / df["Price"] * 100).round(2)
+    df["Revenue_Per_Unit"]   = (df["Revenue"] / df["Units_Sold"]).round(3)
+    df["Daily_Demand"]       = (df["Units_Sold"] / 30.0).round(3)
+    df["Stock_Cover_Days"]   = (df["Stock_Levels"] / (df["Daily_Demand"] + 0.01)).round(1)
+    df["Demand_Stock_Ratio"] = (df["Units_Sold"] / (df["Stock_Levels"] + 1)).round(3)
+    df["Total_Lead_Time"]    = df["Supplier_Lead_Time"] + df["Mfg_Lead_Time"]
+    df["Cost_Per_Unit"]      = (df["Logistics_Cost"] / (df["Units_Sold"] + 1)).round(3)
+    df["Reorder_Point"]      = (df["Daily_Demand"] * df["Total_Lead_Time"] * 1.2 + 5).astype(int)
+    df["Reorder_Gap"]        = df["Stock_Levels"] - df["Reorder_Point"]
+    df["Carrying_Cost_Ratio"]= ((df["Mfg_Cost"] * df["Stock_Levels"]) /
+                                 (df["Price"] * df["Units_Sold"] + 1)).round(4)
+    df["Supply_Efficiency"]  = (df["Production_Volume"] / (df["Order_Quantity"] + 1)).round(3)
+    df["Shipping_Cost_Ratio"]= (df["Shipping_Cost"] / (df["Revenue"] + 1)).round(4)
     return df
 
 
+def derive_targets(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
+    np.random.seed(seed)
+    n = len(df)
+
+    noise      = np.random.normal(1.0, 0.12, n)
+    avail_mult = 1 + (df["Availability"].values - 50) / 200
+    defect_drag= 1 - df["Defect_Rate"].values / 20
+    df["Future_Sales"] = np.maximum(1,
+        (df["Units_Sold"] * noise * avail_mult * defect_drag).round().astype(int))
+
+    med_ship = df["Shipping_Time"].median()
+    dscore = (
+        (df["Shipping_Time"] > med_ship).astype(int) * 0.40
+        + (df["Defect_Rate"] > 2.5).astype(int) * 0.30
+        + (df["Inspection_Result"] == "Fail").astype(int) * 0.30
+        + np.random.normal(0, 0.08, n)
+    )
+    df["Delay_Flag"] = (dscore > 0.35).astype(int)
+
+    low_stock = (df["Stock_Levels"] < df["Reorder_Point"]).astype(int)
+    rscore = (
+        (1 / (df["Stock_Cover_Days"] + 1)) * 30
+        + df["Defect_Rate"] / 5 * 25
+        + low_stock * 35
+        + df["Demand_Stock_Ratio"] / 5 * 10
+        + np.random.normal(0, 3, n)
+    )
+    pct = np.percentile(rscore, [33, 67])
+    df["Inventory_Risk_Class"] = np.where(
+        rscore < pct[0], "Low", np.where(rscore < pct[1], "Medium", "High"))
+
+    cost_to_rev    = df["Logistics_Cost"] / (df["Revenue"] + 1)
+    mfg_margin_inv = df["Mfg_Cost"] / (df["Price"] + 0.01)
+    ship_burden    = df["Shipping_Cost"] / (df["Revenue"] + 1)
+    stock_burden   = (df["Reorder_Point"] - df["Stock_Levels"]).clip(lower=0) / (df["Units_Sold"] + 1)
+    cash_raw = cost_to_rev * 35 + mfg_margin_inv * 30 + ship_burden * 20 + stock_burden * 15
+    mn, mx = cash_raw.min(), cash_raw.max()
+    df["Cash_Stress_Score"] = ((cash_raw - mn) / (mx - mn + 1e-9) * 100).round(2)
+    return df
+
+
+def augment(df: pd.DataFrame, target_rows: int = 800, seed: int = 42) -> pd.DataFrame:
+    np.random.seed(seed)
+    if len(df) >= target_rows:
+        return df.reset_index(drop=True)
+    needed   = target_rows - len(df)
+    numeric  = df.select_dtypes(include=[np.number]).columns.tolist()
+    t_cols   = ["Future_Sales","Delay_Flag","Inventory_Risk_Class","Cash_Stress_Score"]
+    j_cols   = [c for c in numeric if c not in t_cols]
+    rows     = []
+    for i in np.random.choice(len(df), needed, replace=True):
+        row = df.iloc[i].copy()
+        for c in j_cols:
+            row[c] = max(0, row[c] * np.random.normal(1.0, 0.08))
+        rows.append(row)
+    combined = pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
+    combined = derive_targets(combined, seed=seed + 1)
+    return combined.reset_index(drop=True)
+
+
+def process_dataset(
+    excel_path: str = "data/Supply_Chain_Analytics_Uniliver.xlsx",
+    out_csv:    str = "data/smartsupply_dataset.csv",
+    target_rows: int = 800,
+) -> pd.DataFrame:
+    os.makedirs("data", exist_ok=True)
+    df = load_and_engineer(excel_path)
+    df = derive_targets(df)
+    df = augment(df, target_rows=target_rows)
+    df.to_csv(out_csv, index=False)
+    print(f"✅  Dataset saved → {out_csv}  [{len(df):,} rows × {len(df.columns)} cols]")
+    return df
+
+
+# keep old entry-point name so app.py import still works
+def generate_dataset():
+    return process_dataset()
+
+
 if __name__ == "__main__":
-    df = generate_dataset()
-    print(df.describe().T[["mean", "std", "min", "max"]].round(2))
+    df = process_dataset()
+    print(df[["SKU_ID","Product_Type","Units_Sold","Future_Sales",
+              "Delay_Flag","Inventory_Risk_Class","Cash_Stress_Score"]].head(10))
